@@ -1,2 +1,2 @@
-# Economic-Models-Python
-Collection of economic models written in Python
+# Miscellaneous_Python_Projects
+Collection of Python Projects
