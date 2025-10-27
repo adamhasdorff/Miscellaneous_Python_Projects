@@ -118,6 +118,99 @@ def plot_daily_heatmap(df):
     print("Saved: plots/price_heatmap.png")
     plt.close()
 
+def investigate_price_spike(df):
+    """
+    looking @ jan 13-17 price spike
+    """
+    spike_data = df[(df['date'] >= pd.to_datetime('2024-01-13').date()) & 
+                    (df['date'] <= pd.to_datetime('2024-01-17').date())]
+    normal_data = df[~((df['date'] >= pd.to_datetime('2024-01-13').date()) & 
+                       (df['date'] <= pd.to_datetime('2024-01-17').date()))]
+    print("\n" + "="*60)
+    print("Price Spike Analysis: Jan 13-17")
+    print("="*60)
+
+    print("\nSpike Period Stats:")
+    print(f" Average Price: ${spike_data['price'].mean():.2f}/MWh")
+    print(f" Max Price: ${spike_data['price'].max():.2f}/MWh")
+    print(f" Min Price: ${spike_data['price'].min():.2f}/MWh")
+
+    print("\nRest of Month Stats:")
+    print(f" Average Price: ${normal_data['price'].mean():.2f}/MWh")
+    print(f" Max Price: ${normal_data['price'].max():.2f}/MWh")
+    print(f" Min Price: ${normal_data['price'].min():.2f}/MWh")
+
+    print(f"\nPrice Increase: {((spike_data['price'].mean() / normal_data['price'].mean() - 1) *100):.1f}%")
+
+    # Find the highest price hour
+    max_price_row = spike_data.loc[spike_data['price'].idxmax()]
+    print(f"\nHighest Price Occurred:")
+    print(f"  Timestamp: {max_price_row['timestamp']}")
+    print(f"  Price: ${max_price_row['price']:.2f}/MWh")
+    print(f"  Hour: {max_price_row['hour']}")
+
+    #plot compare
+    fig, axes = plt.subplots(2, 1, figsize=(14,10))
+
+    #Spike period detail
+    axes[0].plot(spike_data['timestamp'], spike_data ['price'], linewidth = 2, color = 'red', marker = 'o', markersize = 3)
+    axes[0].set_title('Price Spike Detail: Jan 13-14, 2024', fontsize = 12, fontweight = 'bold')
+    axes[0].set_ylabel('Price ($/MWh)')
+    axes[0].grid(True, alpha = 0.3)
+    axes[0].axhline(spike_data['price'].mean(), color = 'orange', linestyle='--', label=f'Spike Avg: ${spike_data["price"].mean():.2f}')
+    axes[0].legend()
+
+    #hourly compare
+    spike_hourly = spike_data.groupby('hour')['price'].mean()
+    normal_hourly = normal_data.groupby('hour')['price'].mean()
+
+    x = range(24)
+    width = .4
+    axes[1].bar([i - width/2 for i in x], normal_hourly, width, label = 'Rest of Month', color="#7a37e6", alpha = 0.8)
+    axes[1].bar([i + width/2 for i in x], spike_hourly, width, label = 'Spike Period', color="#ec2d1f", alpha = 0.8)
+    axes[1].set_title('Hourly Price Comparison', fontsize = 12, fontweight = 'bold')
+    axes[1].set_ylabel('Average Price ($/MWh)')
+    axes[1].set_xlabel('Hour of day')
+    axes[1].set_xticks(x)
+    axes[1].legend()
+    axes[1].grid(True, alpha = 0.3, axis = 'y')
+
+    plt.tight_layout()
+    plt.savefig('plots/spike_analysis.png', dpi=300, bbox_inches = 'tight')
+    print("\nSaved: plots/spike_analysis.png")
+    plt.close()
+
+def analyze_evening_valley(df):
+    """
+    Analyze why 9 PM has lowest prices
+    """
+    print("\n" + "="*60)
+    print("EVENING PRICE VALLEY ANALYSIS")
+    print("="*60)
+    
+    # Calculate average by hour
+    hourly_stats = df.groupby('hour')['price'].agg(['mean', 'min', 'max', 'std']).reset_index()
+    
+    # Find cheapest hours
+    cheapest_3 = hourly_stats.nsmallest(3, 'mean')
+    most_expensive_3 = hourly_stats.nlargest(3, 'mean')
+    
+    print("\nCheapest Hours:")
+    for _, row in cheapest_3.iterrows():
+        print(f"  {int(row['hour']):02d}:00 - Avg: ${row['mean']:.2f}, Min: ${row['min']:.2f}, Max: ${row['max']:.2f}")
+    
+    print("\nMost Expensive Hours:")
+    for _, row in most_expensive_3.iterrows():
+        print(f"  {int(row['hour']):02d}:00 - Avg: ${row['mean']:.2f}, Min: ${row['min']:.2f}, Max: ${row['max']:.2f}")
+    
+    peak_hour = hourly_stats.loc[hourly_stats['mean'].idxmax(), 'hour']
+    valley_hour = hourly_stats.loc[hourly_stats['mean'].idxmin(), 'hour']
+    
+    print(f"\nPeak-to-Valley Ratio: {hourly_stats['mean'].max() / hourly_stats['mean'].min():.2f}x")
+    print(f"Peak Hour: {int(peak_hour):02d}:00")
+    print(f"Valley Hour: {int(valley_hour):02d}:00")
+
+
 if __name__ == "__main__":
     # Create plots directory
     import os
@@ -138,9 +231,13 @@ if __name__ == "__main__":
     
     # Create all plots
     print("\nGenerating plots...")
+    #generic plots
     plot_time_series(df)
     plot_hourly_pattern(df)
     plot_price_distribution(df)
     plot_daily_heatmap(df)
+    #Investigative Plots
+    #investigate_price_spike(df)
+    #analyze_evening_valley(df)
     
     print("\nAll plots saved to 'plots/' directory!")
